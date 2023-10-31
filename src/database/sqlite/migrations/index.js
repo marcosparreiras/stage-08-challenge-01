@@ -6,6 +6,7 @@ const connectDB = require('../../sqlite');
 async function runMigrations() {
     const db = await connectDB();
     const migrations = [users, movie_notes, movie_tags];
+    await db.exec('PRAGMA foreign_keys = ON');
     migrations.forEach(async (migration) => {
         await db.run(migration);
     });
