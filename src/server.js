@@ -3,10 +3,18 @@ const express = require('express');
 const routes = require('./routes');
 const runMigrations = require('./database/sqlite/migrations');
 const AppError = require('./utils/AppError');
+const path = require('path');
+const cors = require('cors');
 
 const PORT = 3000;
 runMigrations();
 const app = express();
+app.use(cors());
+
+app.use(
+    '/files',
+    express.static(path.resolve(__dirname, '..', 'temp', 'uploads'))
+);
 
 app.use(express.json());
 app.use(routes);

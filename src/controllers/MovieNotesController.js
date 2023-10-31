@@ -1,12 +1,20 @@
 const connectDB = require('../database/sqlite');
 const AppErro = require('../utils/AppError');
 const validateRequestBody = require('../utils/validateRequestBody');
-const { compare } = require('bcrypt');
 
 class MovieNotesController {
-    async index(_req, res) {
+    async index(req, res) {
+        const { title } = req.query;
         const db = await connectDB();
-        const results = await db.all('SELECT * FROM movie_notes');
+        let results;
+        if (title) {
+            results = await db.all(
+                'SELECT * FROM movie_notes WHERE title LIKE (?)',
+                [`%${title}%`]
+            );
+        } else {
+            results = await db.all('SELECT * FROM movie_notes');
+        }
         const movies_notes = await Promise.all(
             results.map(async (movie_note) => {
                 const tags = await db.all(
@@ -39,21 +47,16 @@ class MovieNotesController {
     }
 
     async create(req, res) {
-        const { user_id } = req.params;
-        const requestedBodyParams = [
-            'title',
-            'description',
-            'rating',
-            'tags',
-            'password',
-        ];
-        validateRequestBody(requestedBodyParams, req.body);
-        const { title, description, rating, tags, password } = req.body;
+        const user_id = req.user_id;
+        validateRequestBody(
+            ['title', 'description', 'rating', 'tags'],
+            req.body
+        );
+        const { title, description, rating, tags } = req.body;
         if (rating < 1 || rating > 5) {
             throw new AppErro('Rating must be between 1 and 5');
         }
         const db = await connectDB();
-        await validateUserAndPassword(user_id, password, db);
         const result = await db.run(
             'INSERT INTO movie_notes(title, description, rating, user_id) VALUES (?, ?, ?, ?)',
             [title, description, rating, user_id]
@@ -70,22 +73,20 @@ class MovieNotesController {
     async update(req, res) {
         const { note_id } = req.params;
         const db = await connectDB();
-        const requestedBodyParams = ['description', 'rating', 'password'];
-        validateRequestBody(requestedBodyParams, req.body);
-        const { description, rating, password } = req.body;
+        validateRequestBody(['title', 'description', 'rating'], req.body);
+        const { description, rating, title } = req.body;
         const note = await db.get('SELECT * FROM movie_notes WHERE id = (?)', [
             note_id,
         ]);
         if (!note) {
             throw new AppErro('Note not found');
         }
-        await validateUserAndPassword(note.user_id, password, db);
         if (rating < 1 || rating > 5) {
             throw new AppErro('Rating must be between 1 and 5');
         }
         await db.run(
-            'UPDATE movie_notes SET description = (?), rating = (?), updated_at = DATETIME("now") WHERE id = (?)',
-            [description, rating, note_id]
+            'UPDATE movie_notes SET description = (?), rating = (?), title = (?), updated_at = DATETIME("now") WHERE id = (?)',
+            [description, rating, title, note_id]
         );
         res.status(200).json({ success: true });
     }
@@ -99,24 +100,8 @@ class MovieNotesController {
         if (!note) {
             throw new AppErro('Note not found');
         }
-        const requestedBodyParams = ['password'];
-        validateRequestBody(requestedBodyParams, req.body);
-        const { password } = req.body;
-        await validateUserAndPassword(note.user_id, password, db);
         await db.run('DELETE FROM movie_notes WHERE id = (?)', [note_id]);
         res.status(204).json();
-    }
-}
-
-async function validateUserAndPassword(user_id, password, db) {
-    const user = await db.get('SELECT * FROM users WHERE id = (?)', [user_id]);
-    if (!user) {
-        throw new AppErro('User not found');
-    }
-    const passwordIsValid = await compare(password, user.password);
-    console.log(password, user.password, passwordIsValid);
-    if (!passwordIsValid) {
-        throw new AppErro('Invalid Password');
     }
 }
 

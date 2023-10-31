@@ -7,6 +7,7 @@ async function connectDB() {
         filename: path.resolve(__dirname, '../', 'database.db'),
         driver: sqlite3.Database,
     });
+    await db.exec('PRAGMA foreign_keys = ON');
     return db;
 }
 
